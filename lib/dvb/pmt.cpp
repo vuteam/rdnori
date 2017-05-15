@@ -177,7 +177,7 @@ void eDVBServicePMTHandler::PATready(int)
 			ProgramAssociationConstIterator program;
 			for (program = pat.getPrograms()->begin(); pmtpid == -1 && program != pat.getPrograms()->end(); ++program)
 			{
-//				++cnt;
+				++cnt;
 				if (eServiceID((*program)->getProgramNumber()) == m_reference.getServiceID())
 					pmtpid = (*program)->getProgramMapPid();
 				if (++cnt == 1 && pmtpid_single == -1 && pmtpid == -1)
@@ -516,42 +516,8 @@ int eDVBServicePMTHandler::getProgramInfo(program &program)
 	program.pmtVersion = -1;
 
 	int first_ac3 = -1;
-	int audio_cached = -1;
-	int autoaudio_mpeg = -1;
-	int autoaudio_ac3 = -1;
-	int autoaudio_level = 4;
-	
-	std::string configvalue;
-	std::vector<std::string> autoaudio_languages;
-	if (!ePythonConfigQuery::getConfigValue("config.autolanguage.audio_autoselect1", configvalue) && configvalue != "None")
-			autoaudio_languages.push_back(configvalue);
-	if (!ePythonConfigQuery::getConfigValue("config.autolanguage.audio_autoselect2", configvalue) && configvalue != "None")
-			autoaudio_languages.push_back(configvalue);
-	if (!ePythonConfigQuery::getConfigValue("config.autolanguage.audio_autoselect3", configvalue) && configvalue != "None")
-			autoaudio_languages.push_back(configvalue);
-	if (!ePythonConfigQuery::getConfigValue("config.autolanguage.audio_autoselect4", configvalue) && configvalue != "None")
-			autoaudio_languages.push_back(configvalue);
-	
 	program.defaultAudioStream = 0;
 	audioStream *prev_audio = 0;
-
-       int autosub_txt_normal = -1;
-		int autosub_txt_hearing = -1;
-		int autosub_dvb_normal = -1;
-		int autosub_dvb_hearing = -1;
-		int autosub_level =4;
-
-		std::vector<std::string> autosub_languages;
-		if (!ePythonConfigQuery::getConfigValue("config.autolanguage.subtitle_autoselect1", configvalue) && configvalue != "None")
-			autosub_languages.push_back(configvalue);
-		if (!ePythonConfigQuery::getConfigValue("config.autolanguage.subtitle_autoselect2", configvalue) && configvalue != "None")
-			autosub_languages.push_back(configvalue);
-		if (!ePythonConfigQuery::getConfigValue("config.autolanguage.subtitle_autoselect3", configvalue) && configvalue != "None")
-			autosub_languages.push_back(configvalue);
-		if (!ePythonConfigQuery::getConfigValue("config.autolanguage.subtitle_autoselect4", configvalue) && configvalue != "None")
-			autosub_languages.push_back(configvalue);
-
-       program.defaultSubtitleStream = -1;
 
 	if ( m_service && !m_service->cacheEmpty() )
 	{
@@ -730,38 +696,21 @@ int eDVBServicePMTHandler::getProgramInfo(program &program)
 										s.subtitling_type = (*it)->getSubtitlingType();
 										switch(s.subtitling_type)
 										{
-										case 0x10 ... 0x13: // dvb subtitles normal
-										case 0x20 ... 0x23: // dvb subtitles hearing impaired
+										case 0x10 ... 0x13:
+										case 0x20 ... 0x23: // dvb subtitles
 											break;
 										default:
 											eDebug("dvb subtitle %s PID %04x with wrong subtitling type (%02x)... force 0x10!!",
-											s.language_code.c_str(), s.pid, s.subtitling_type);
+												s.language_code.c_str(), s.pid, s.subtitling_type);
 											s.subtitling_type = 0x10;
 											break;
 										}
 										s.composition_page_id = (*it)->getCompositionPageId();
 										s.ancillary_page_id = (*it)->getAncillaryPageId();
-										std::string language = (*it)->getIso639LanguageCode();
-									s.language_code = language;
-//								eDebug("add dvb subtitle %s PID %04x, type %d, composition page %d, ancillary_page %d", s.language_code.c_str(), s.pid, s.subtitling_type, s.composition_page_id, s.ancillary_page_id);
-
-									if (!language.empty())
-									{
-										int x = 1;
-										for (std::vector<std::string>::iterator it2 = autosub_languages.begin();x <= autosub_level && it2 != autosub_languages.end();x++,it2++)
-										{
-											if ((*it2).find(language) != std::string::npos)
-											{
-												autosub_level = x;
-												if (s.subtitling_type >= 0x20)
-													autosub_dvb_hearing = program.subtitleStreams.size();
-												else
-													autosub_dvb_normal = program.subtitleStreams.size();
-												break;
-											}
-										}
-									}
-									issubtitle = 1;
+										s.language_code = (*it)->getIso639LanguageCode();
+//										eDebug("add dvb subtitle %s PID %04x, type %d, composition page %d, ancillary_page %d",
+//											s.language_code.c_str(), s.pid, s.subtitling_type, s.composition_page_id, s.ancillary_page_id);
+										issubtitle=1;
 										program.subtitleStreams.push_back(s);
 									}
 									break;
@@ -775,36 +724,19 @@ int eDVBServicePMTHandler::getProgramInfo(program &program)
 										TeletextDescriptor *d = (TeletextDescriptor*)(*desc);
 										isteletext = 1;
 										const VbiTeletextList *list = d->getVbiTeletexts();
-										std::string language;
 										for (VbiTeletextConstIterator it(list->begin()); it != list->end(); ++it)
 										{
 											switch((*it)->getTeletextType())
 											{
 											case 0x02: // Teletext subtitle page
 											case 0x05: // Teletext subtitle page for hearing impaired pepople
-												language = (*it)->getIso639LanguageCode();
-											s.language_code = language;
-											s.teletext_page_number = (*it)->getTeletextPageNumber();
-											s.teletext_magazine_number = (*it)->getTeletextMagazineNumber();
-//										eDebug("add teletext subtitle %s PID %04x, page number %d, magazine number %d", s.language_code.c_str(), s.pid, s.teletext_page_number, s.teletext_magazine_number);
-											if (!language.empty())
-											{
-												int x = 1;
-												for (std::vector<std::string>::iterator it2 = autosub_languages.begin();x <= autosub_level && it2 != autosub_languages.end();x++,it2++)
-												{
-													if ((*it2).find(language) != std::string::npos)
-													{
-														autosub_level = x;
-														if (s.subtitling_type == 0x05)
-															autosub_txt_hearing = program.subtitleStreams.size();
-														else
-															autosub_txt_normal = program.subtitleStreams.size();
-														break;
-													}
-												}
-											}
-											program.subtitleStreams.push_back(s);
-											issubtitle=1;
+												s.language_code = (*it)->getIso639LanguageCode();
+												s.teletext_page_number = (*it)->getTeletextPageNumber();
+												s.teletext_magazine_number = (*it)->getTeletextMagazineNumber();
+//												eDebug("add teletext subtitle %s PID %04x, page number %d, magazine number %d",
+//													s.language_code.c_str(), s.pid, s.teletext_page_number, s.teletext_magazine_number);
+												program.subtitleStreams.push_back(s);
+												issubtitle=1;
 											default:
 												break;
 											}
@@ -898,34 +830,15 @@ int eDVBServicePMTHandler::getProgramInfo(program &program)
 							case ISO_639_LANGUAGE_DESCRIPTOR:
 								if (!isvideo)
 								{
+									int cnt=0;
 									const Iso639LanguageList *languages = ((Iso639LanguageDescriptor*)*desc)->getIso639Languages();
 										/* use last language code */
-									int cnt=0;
-									for (Iso639LanguageConstIterator i=languages->begin(); i != languages->end(); ++i)
+									for (Iso639LanguageConstIterator i(languages->begin()); i != languages->end(); ++i, ++cnt)
 									{
-										std::string language=(*i)->getIso639LanguageCode();
-										if ( cnt==0 )
-											audio.language_code = language;
+										if (cnt == 0)
+											audio.language_code = (*i)->getIso639LanguageCode();
 										else
-											audio.language_code += "/" + language;
-										cnt++;
-											
-										if (!language.empty())
-										{
-											int x = 1;
-											for (std::vector<std::string>::iterator it = autoaudio_languages.begin();x <= autoaudio_level && it != autoaudio_languages.end();x++,it++)
-											{
-												if ((*it).find(language) != std::string::npos)
-												{
-													if (audio.type == audioStream::atMPEG && (autoaudio_level > x || autoaudio_mpeg == -1)) 
-														autoaudio_mpeg = program.audioStreams.size();
-													else if (audio.type != audioStream::atMPEG && (autoaudio_level > x || autoaudio_ac3 == -1))
-														autoaudio_ac3 = program.audioStreams.size();
-													autoaudio_level = x;
-													break;
-												}
-											}
-										}
+											audio.language_code += "/" + (*i)->getIso639LanguageCode();
 									}
 								}
 								break;
@@ -1015,11 +928,9 @@ int eDVBServicePMTHandler::getProgramInfo(program &program)
 					{
 						audio.pid = (*es)->getPid();
 
-
 							/* if we find the cached pids, this will be our default stream */
 						if (audio.pid == cached_apid_ac3 || audio.pid == cached_apid_ddp || audio.pid == cached_apid_mpeg || audio.pid == cached_apid_aache || audio.pid == cached_apid_aac)
 							program.defaultAudioStream = program.audioStreams.size();
-
 
 							/* also, we need to know the first non-mpeg (i.e. "ac3"/dts/...) stream */
 						if ((audio.type != audioStream::atMPEG) && ((first_ac3 == -1) || (audio.pid == cached_apid_ac3) || (audio.pid == cached_apid_ddp)))
@@ -1034,75 +945,19 @@ int eDVBServicePMTHandler::getProgramInfo(program &program)
 			}
 			ret = 0;
 
+			/* finally some fixup: if our default audio stream is an MPEG audio stream, 
+			   and we have 'defaultac3' set, use the first available ac3 stream instead.
+			   (note: if an ac3 audio stream was selected before, this will be also stored
+			   in 'fisrt_ac3', so we don't need to worry. */
 			bool defaultac3 = false;
-			bool useaudio_cache = false;
+			std::string default_ac3;
 
-			if (!ePythonConfigQuery::getConfigValue("config.autolanguage.audio_defaultac3", configvalue))
-				defaultac3 = configvalue == "True";
-			if (!ePythonConfigQuery::getConfigValue("config.autolanguage.audio_usecache", configvalue))
-				useaudio_cache = configvalue == "True";
+			if (!ePythonConfigQuery::getConfigValue("config.av.defaultac3", default_ac3))
+				defaultac3 = default_ac3 == "True";
 
-			if (useaudio_cache && audio_cached != -1)
-				program.defaultAudioStream = audio_cached;
-			else if ( defaultac3 )
-			{
-				if ( autoaudio_ac3 != -1 )
-					program.defaultAudioStream = autoaudio_ac3;
-				else if ( autoaudio_mpeg != -1 )
-					program.defaultAudioStream = autoaudio_mpeg;
-				else if ( first_ac3 != -1 )
-					program.defaultAudioStream = first_ac3;
-			}
-			else
-			{
-				if ( autoaudio_mpeg != -1 )
-					program.defaultAudioStream = autoaudio_mpeg;
-				else if ( autoaudio_ac3 != -1 )
-					program.defaultAudioStream = autoaudio_ac3;
-			}
-			
-			bool allow_hearingimpaired = false;
-			bool default_hearingimpaired = false;
-			bool defaultdvb = false;
+			if (defaultac3 && (first_ac3 != -1))
+				program.defaultAudioStream = first_ac3;
 
-			if (!ePythonConfigQuery::getConfigValue("config.autolanguage.subtitle_hearingimpaired", configvalue))
-				allow_hearingimpaired = configvalue == "True";
-			if (!ePythonConfigQuery::getConfigValue("config.autolanguage.subtitle_defaultimpaired", configvalue))
-				default_hearingimpaired = configvalue == "True";
-			if (!ePythonConfigQuery::getConfigValue("config.autolanguage.subtitle_defaultdvb", configvalue))
-				defaultdvb = configvalue == "True";
-
-			if (defaultdvb)
-			{
-				if (allow_hearingimpaired && default_hearingimpaired && autosub_dvb_hearing != -1)
-						program.defaultSubtitleStream = autosub_dvb_hearing;
-				else if (autosub_dvb_normal != -1)
-					program.defaultSubtitleStream = autosub_dvb_normal;
-				else if (allow_hearingimpaired && autosub_dvb_hearing != -1)
-					program.defaultSubtitleStream = autosub_dvb_hearing;
-				else if (allow_hearingimpaired && default_hearingimpaired && autosub_txt_hearing != -1)
-					program.defaultSubtitleStream = autosub_txt_hearing;
-				else if (autosub_txt_normal != -1)
-					program.defaultSubtitleStream = autosub_txt_normal;
-				else if (allow_hearingimpaired && autosub_dvb_hearing != -1)
-					program.defaultSubtitleStream = autosub_txt_hearing;
-			}
-			else
-			{
-				if (allow_hearingimpaired && default_hearingimpaired && autosub_txt_hearing != -1)
-					program.defaultSubtitleStream = autosub_txt_hearing;
-				else if (autosub_txt_normal != -1)
-					program.defaultSubtitleStream = autosub_txt_normal;
-				else if (allow_hearingimpaired && autosub_txt_hearing != -1)
-					program.defaultSubtitleStream = autosub_txt_hearing;
-				else if (allow_hearingimpaired && default_hearingimpaired && autosub_dvb_hearing != -1)
-					program.defaultSubtitleStream = autosub_dvb_hearing;
-				else if (autosub_dvb_normal != -1)
-					program.defaultSubtitleStream = autosub_dvb_normal;
-				else if (allow_hearingimpaired && autosub_dvb_hearing != -1)
-					program.defaultSubtitleStream = autosub_dvb_hearing;
-			}
-			
 			m_cached_program = program;
 			m_have_cached_program = true;
 		}
