@@ -243,7 +243,6 @@ off_t eMPEGStreamInformation::getAccessPoint(pts_t ts, int marg)
 		/* FIXME: more efficient implementation */
 	off_t last = 0;
 	off_t last2 = 0;
-	pts_t lastc = 0;
 	ts += 1; // Add rounding error margin
 	for (std::map<off_t, pts_t>::const_iterator i(m_access_points.begin()); i != m_access_points.end(); ++i)
 	{
