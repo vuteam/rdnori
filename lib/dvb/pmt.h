@@ -253,7 +253,6 @@ public:
 		std::vector<audioStream> audioStreams;
 		int defaultAudioStream;
 		std::vector<subtitleStream> subtitleStreams;
-		int defaultSubtitleStream;
 		std::list<capid_pair> caids;
 		int pcrPid;
 		int pmtPid;
